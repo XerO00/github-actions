@@ -7,13 +7,17 @@ on:
     branches: [ "dev" ]
   pull_request:
     branches: [ "main" ]
-
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - name: Get code
         uses: actions/checkout@v3
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: deps-node-modules-${{ hashFiles('**/package-lock.json') }}
       - name: Install dependencies
         run: npm ci
       - name: Lint code
@@ -23,28 +27,37 @@ jobs:
   build:
     needs: test
     runs-on: ubuntu-latest
-    script-file: ${{ steps.publish.outputs.script-file }}
+    outputs:
+      script-file: ${{ steps.publish.outputs.script-file }}
     steps:
       - name: Get code
         uses: actions/checkout@v3
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: deps-node-modules-${{ hashFiles('**/package-lock.json') }}
       - name: Install dependencies
         run: npm ci
       - name: Build website
         run: npm run build
+      - name: Publish JS filename
+        id: publish
+        run: find dist/assets/*.js -type f -execdir echo 'script-file={}' >> $GITHUB_OUTPUT ';'
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: dist-files
           path: dist
-      - name: Get file name
-        id: publish
-        run: find dist/assets/*.js -type f -execdir echo 'script-file={}' >> $GITHUB_OUTPUT ';'
+          # path: |
+          #   dist
+          #   package.json
   deploy:
     needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Get build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: dist-files
       - name: Output contents
